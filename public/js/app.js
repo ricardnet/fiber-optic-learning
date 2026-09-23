@@ -2,13 +2,13 @@
 let appState = {
   currentUser: { username: 'Siswa Tamu', class_name: 'Umum' },
   activeView: 'dashboard',
-  materials: []
+  materials: (typeof materialsData !== 'undefined') ? materialsData : []
 };
 
 // Hubungkan Event Listener saat DOM siap
 document.addEventListener('DOMContentLoaded', () => {
-  // Load data material
-  if (typeof materialsData !== 'undefined') {
+  // Pastikan data materi dimuat
+  if ((!appState.materials || appState.materials.length === 0) && typeof materialsData !== 'undefined') {
     appState.materials = materialsData;
   }
   
@@ -111,14 +111,29 @@ async function fetchDashboardStats() {
   
   try {
     const res = await fetch(`/api/stats?username=${encodeURIComponent(appState.currentUser.username)}`);
-    const stats = await res.json();
-    
     if (res.ok) {
+      const stats = await res.json();
       renderDashboardStats(stats);
+      return;
     }
   } catch (err) {
-    console.error("Gagal memuat statistik dashboard:", err);
+    console.warn("Gagal memuat statistik online, menggunakan penyimpanan lokal");
   }
+
+  // Fallback lokal jika berjalan di hosting statis
+  const localStats = getLocalFallbackStats();
+  renderDashboardStats(localStats);
+}
+
+function getLocalFallbackStats() {
+  const completed = JSON.parse(localStorage.getItem('completed_materials') || '[]');
+  const quizzes = JSON.parse(localStorage.getItem('recent_quizzes') || '[]');
+  return {
+    completedMaterials: completed,
+    quiz: { attempts: quizzes.length, averageScore: quizzes.length > 0 ? Math.round(quizzes.reduce((a, b) => a + b.score, 0) / quizzes.length) : 0 },
+    troubleshooting: { attempts: 0, success: 0, successRate: 0 },
+    recentQuizzes: quizzes
+  };
 }
 
 function renderDashboardStats(stats) {
@@ -153,7 +168,7 @@ function renderDashboardStats(stats) {
       `;
     } else {
       tbody.innerHTML = stats.recentQuizzes.map(q => {
-        const date = new Date(q.completed_at).toLocaleDateString('id-ID', {
+        const date = new Date(q.completed_at || Date.now()).toLocaleDateString('id-ID', {
           day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
         });
         
@@ -179,6 +194,11 @@ function renderMaterialsList() {
   const container = document.getElementById('materi-content');
   if (!container) return;
 
+  // Pastikan data selalu ada
+  if ((!appState.materials || appState.materials.length === 0) && typeof materialsData !== 'undefined') {
+    appState.materials = materialsData;
+  }
+
   container.innerHTML = `
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6" id="materials-layout-container">
       <!-- Daftar Judul Kategori (Sidebar Kiri) -->
@@ -203,27 +223,41 @@ function renderMaterialsList() {
   `;
 
   renderMaterialsSidebar();
+
+  // Buka otomatis materi pertama jika belum ada materi aktif
+  if (appState.materials && appState.materials.length > 0) {
+    openMaterialDetail(appState.materials[0].id);
+  }
 }
 
 async function renderMaterialsSidebar() {
   const sidebarList = document.getElementById('materials-sidebar-list');
   if (!sidebarList) return;
 
-  let completedList = [];
+  // Pastikan data terisi
+  if ((!appState.materials || appState.materials.length === 0) && typeof materialsData !== 'undefined') {
+    appState.materials = materialsData;
+  }
+
+  let completedList = JSON.parse(localStorage.getItem('completed_materials') || '[]');
+
   if (appState.currentUser) {
     try {
       const res = await fetch(`/api/stats?username=${encodeURIComponent(appState.currentUser.username)}`);
-      const stats = await res.json();
       if (res.ok) {
-        completedList = stats.completedMaterials || [];
-        const progressProgress = document.getElementById('materials-sidebar-progress');
-        if (progressProgress) {
-          progressProgress.innerText = `${completedList.length}/10 Selesai`;
+        const stats = await res.json();
+        if (stats.completedMaterials && stats.completedMaterials.length > 0) {
+          completedList = stats.completedMaterials;
         }
       }
     } catch (e) {
-      console.error(e);
+      console.warn("Menggunakan status pembelajaran lokal");
     }
+  }
+
+  const progressProgress = document.getElementById('materials-sidebar-progress');
+  if (progressProgress) {
+    progressProgress.innerText = `${completedList.length}/10 Selesai`;
   }
 
   sidebarList.innerHTML = appState.materials.map(m => {
@@ -236,7 +270,7 @@ async function renderMaterialsSidebar() {
       <button 
         onclick="openMaterialDetail('${m.id}')"
         id="mat-btn-${m.id}"
-        class="w-full text-left p-3 rounded-xl border border-slate-100 hover:border-slate-250 bg-slate-50/50 hover:bg-white transition-all flex justify-between items-center group"
+        class="w-full text-left p-3 rounded-xl border border-slate-100 hover:border-slate-250 bg-slate-50/50 hover:bg-white transition-all flex justify-between items-center group shadow-xs"
       >
         <div class="flex flex-col gap-0.5">
           <span class="text-[9px] uppercase tracking-wider text-slate-450 font-bold group-hover:text-cyan-600 transition-colors">${m.category}</span>
@@ -255,6 +289,10 @@ let matQuizState = {
 };
 
 function openMaterialDetail(id) {
+  if ((!appState.materials || appState.materials.length === 0) && typeof materialsData !== 'undefined') {
+    appState.materials = materialsData;
+  }
+
   const material = appState.materials.find(m => m.id === id);
   if (!material) return;
 
@@ -265,9 +303,9 @@ function openMaterialDetail(id) {
     const btn = document.getElementById(`mat-btn-${m.id}`);
     if (btn) {
       if (m.id === id) {
-        btn.className = "w-full text-left p-3 rounded-xl border border-cyan-300 bg-cyan-50/30 transition-all flex justify-between items-center group";
+        btn.className = "w-full text-left p-3 rounded-xl border border-cyan-400 bg-cyan-50/40 transition-all flex justify-between items-center group shadow-xs";
       } else {
-        btn.className = "w-full text-left p-3 rounded-xl border border-slate-100 hover:border-slate-250 bg-slate-50/50 hover:bg-white transition-all flex justify-between items-center group";
+        btn.className = "w-full text-left p-3 rounded-xl border border-slate-100 hover:border-slate-250 bg-slate-50/50 hover:bg-white transition-all flex justify-between items-center group shadow-xs";
       }
     }
   });
@@ -414,6 +452,13 @@ async function submitMatQuiz() {
   });
 
   if (allCorrect) {
+    // Simpan progres ke localStorage
+    const saved = JSON.parse(localStorage.getItem('completed_materials') || '[]');
+    if (!saved.includes(activeMaterial.id)) {
+      saved.push(activeMaterial.id);
+      localStorage.setItem('completed_materials', JSON.stringify(saved));
+    }
+
     if (appState.currentUser) {
       try {
         await fetch('/api/progress', {
@@ -424,18 +469,18 @@ async function submitMatQuiz() {
             material_id: activeMaterial.id
           })
         });
-        
-        const viewer = document.getElementById('materials-viewer-panel');
-        const alertBox = document.createElement('div');
-        alertBox.className = "p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-xs font-bold text-center mt-4 animate-fade-in shadow-sm";
-        alertBox.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Hebat! Anda menjawab semua quiz dengan benar. Modul '${activeMaterial.title}' ditandai selesai!`;
-        viewer.appendChild(alertBox);
-
-        renderMaterialsSidebar();
       } catch (err) {
-        console.error(err);
+        console.warn("Progres disimpan di lokal browser");
       }
     }
+
+    const viewer = document.getElementById('materials-viewer-panel');
+    const alertBox = document.createElement('div');
+    alertBox.className = "p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-xs font-bold text-center mt-4 animate-fade-in shadow-sm";
+    alertBox.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Hebat! Anda menjawab semua quiz dengan benar. Modul '${activeMaterial.title}' ditandai selesai!`;
+    viewer.appendChild(alertBox);
+
+    renderMaterialsSidebar();
   } else {
     const viewer = document.getElementById('materials-viewer-panel');
     const retryBtn = document.createElement('button');

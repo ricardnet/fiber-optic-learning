@@ -22,10 +22,14 @@ app.get('*', (req, res) => {
 });
 
 // Jalankan server
-app.listen(PORT, () => {
-  console.log(`==================================================`);
-  console.log(` FIBER OPTIC LEARNING & CALCULATOR SERVER`);
-  console.log(` Dijalankan pada: http://localhost:${PORT}`);
-  console.log(` Lingkungan: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`==================================================`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`==================================================`);
+    console.log(` FIBER OPTIC LEARNING & CALCULATOR SERVER`);
+    console.log(` Dijalankan pada: http://localhost:${PORT}`);
+    console.log(` Lingkungan: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`==================================================`);
+  });
+}
+
+module.exports = app;
