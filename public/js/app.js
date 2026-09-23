@@ -194,21 +194,45 @@ function renderMaterialsList() {
   const container = document.getElementById('materi-content');
   if (!container) return;
 
-  // Pastikan data selalu ada
-  if ((!appState.materials || appState.materials.length === 0) && typeof materialsData !== 'undefined') {
-    appState.materials = materialsData;
-  }
+  const data = (window.materialsData && window.materialsData.length > 0) 
+    ? window.materialsData 
+    : ((typeof materialsData !== 'undefined') ? materialsData : (appState.materials || []));
+  
+  appState.materials = data;
+
+  const completedList = JSON.parse(localStorage.getItem('completed_materials') || '[]');
+
+  const sidebarButtonsHtml = data.map(m => {
+    const isCompleted = completedList.includes(m.id);
+    const badge = isCompleted 
+      ? '<span class="text-[10px] text-green-600 flex items-center gap-1 font-semibold"><i class="fas fa-check-circle"></i> Selesai</span>' 
+      : '<span class="text-[10px] text-slate-400">Belum dibaca</span>';
+
+    return `
+      <button 
+        onclick="openMaterialDetail('${m.id}')"
+        id="mat-btn-${m.id}"
+        class="w-full text-left p-3 rounded-xl border border-slate-100 hover:border-slate-250 bg-slate-50/50 hover:bg-white transition-all flex justify-between items-center group shadow-xs cursor-pointer"
+      >
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[9px] uppercase tracking-wider text-slate-450 font-bold group-hover:text-cyan-600 transition-colors">${m.category}</span>
+          <span class="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors">${m.title}</span>
+        </div>
+        ${badge}
+      </button>
+    `;
+  }).join('');
 
   container.innerHTML = `
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6" id="materials-layout-container">
       <!-- Daftar Judul Kategori (Sidebar Kiri) -->
-      <div class="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200 flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-2 shadow-sm">
+      <div class="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200 flex flex-col gap-3 max-h-[650px] overflow-y-auto pr-2 shadow-sm">
         <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-2 flex justify-between items-center">
           <span>Daftar Modul Belajar</span>
-          <span class="text-[10px] text-cyan-600 font-semibold" id="materials-sidebar-progress">0/10 Selesai</span>
+          <span class="text-[10px] text-cyan-600 font-semibold" id="materials-sidebar-progress">${completedList.length}/10 Selesai</span>
         </h4>
         <div class="flex flex-col gap-1.5" id="materials-sidebar-list">
-          <!-- Diisi dinamis -->
+          ${sidebarButtonsHtml}
         </div>
       </div>
 
@@ -222,11 +246,9 @@ function renderMaterialsList() {
     </div>
   `;
 
-  renderMaterialsSidebar();
-
-  // Buka otomatis materi pertama jika belum ada materi aktif
-  if (appState.materials && appState.materials.length > 0) {
-    openMaterialDetail(appState.materials[0].id);
+  // Buka otomatis materi pertama
+  if (data.length > 0) {
+    openMaterialDetail(data[0].id);
   }
 }
 
@@ -234,10 +256,11 @@ async function renderMaterialsSidebar() {
   const sidebarList = document.getElementById('materials-sidebar-list');
   if (!sidebarList) return;
 
-  // Pastikan data terisi
-  if ((!appState.materials || appState.materials.length === 0) && typeof materialsData !== 'undefined') {
-    appState.materials = materialsData;
-  }
+  const data = (window.materialsData && window.materialsData.length > 0) 
+    ? window.materialsData 
+    : ((typeof materialsData !== 'undefined') ? materialsData : (appState.materials || []));
+
+  appState.materials = data;
 
   let completedList = JSON.parse(localStorage.getItem('completed_materials') || '[]');
 
@@ -260,7 +283,7 @@ async function renderMaterialsSidebar() {
     progressProgress.innerText = `${completedList.length}/10 Selesai`;
   }
 
-  sidebarList.innerHTML = appState.materials.map(m => {
+  sidebarList.innerHTML = data.map(m => {
     const isCompleted = completedList.includes(m.id);
     const badge = isCompleted 
       ? '<span class="text-[10px] text-green-600 flex items-center gap-1 font-semibold"><i class="fas fa-check-circle"></i> Selesai</span>' 
@@ -270,7 +293,7 @@ async function renderMaterialsSidebar() {
       <button 
         onclick="openMaterialDetail('${m.id}')"
         id="mat-btn-${m.id}"
-        class="w-full text-left p-3 rounded-xl border border-slate-100 hover:border-slate-250 bg-slate-50/50 hover:bg-white transition-all flex justify-between items-center group shadow-xs"
+        class="w-full text-left p-3 rounded-xl border border-slate-100 hover:border-slate-250 bg-slate-50/50 hover:bg-white transition-all flex justify-between items-center group shadow-xs cursor-pointer"
       >
         <div class="flex flex-col gap-0.5">
           <span class="text-[9px] uppercase tracking-wider text-slate-450 font-bold group-hover:text-cyan-600 transition-colors">${m.category}</span>

@@ -1,4 +1,4 @@
-const materialsData = [
+window.materialsData = [
   {
     id: "pengertian",
     title: "Pengertian Fiber Optik",
